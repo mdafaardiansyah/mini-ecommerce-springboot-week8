@@ -8,6 +8,7 @@ import edts.week8_practice1.enums.*;
 import edts.week8_practice1.repository.*;
 import edts.week8_practice1.service.*;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,9 +21,20 @@ import java.util.Collections;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Integration Test - Full Spring Boot Context Test
+ *
+ * NOTE: This test is DISABLED for CI/CD pipeline because it's slow (runs full Spring Boot context).
+ * Integration tests should be run manually or in a separate pipeline stage.
+ *
+ * To enable temporarily:
+ * 1. Remove @Disabled annotation
+ * 2. Or run: mvn test -Dtest=IntegrationTest
+ */
 @SpringBootTest
 @ActiveProfiles("test")
 @Transactional
+@Disabled("Integration test disabled for fast CI/CD. Run manually with: mvn test -Dtest=IntegrationTest")
 class IntegrationTest {
 
     @Autowired

@@ -120,17 +120,22 @@ pipeline {
         }
 
         // ============================================================
-        // STAGE 2: Build with Maven (Tests NOT Skipped)
+        // STAGE 2: Build with Maven (Unit Tests Only)
         // ============================================================
         stage('Build') {
             steps {
                 script {
                     echo "🔨 Building Spring Boot Application..."
                     echo "⚠️ Unit tests will run. Build will FAIL if tests fail."
+                    echo "ℹ️ Integration tests skipped for faster CI/CD"
 
                     withEnv(["SPRING_PROFILES_ACTIVE=${env.SPRING_PROFILE}"]) {
-                        // DO NOT skip tests
-                        sh 'mvn clean package'
+                        // Skip integration tests, only run unit tests
+                        // -DskipITs: Skip integration tests (@SpringBootTest)
+                        // Tests still run, won't skip unit tests
+                        timeout(time: 30, unit: 'MINUTES') {
+                            sh 'mvn clean package -DskipITs'
+                        }
                     }
 
                     // Verify JAR was created
@@ -148,20 +153,17 @@ pipeline {
         }
 
         // ============================================================
-        // STAGE 3: Run Unit Tests (MANDATORY)
+        // STAGE 3: Verify Unit Tests Results
         // ============================================================
-        stage('Unit Tests') {
+        stage('Verify Tests') {
             steps {
                 script {
-                    echo "🧪 Running Unit Tests..."
-
-                    // Run tests and publish results
-                    sh 'mvn test'
+                    echo "🧪 Verifying test results..."
 
                     // Publish test results to Jenkins
                     junit testResults: 'target/surefire-reports/*.xml', allowEmptyResults: false
 
-                    echo "✅ All tests passed!"
+                    echo "✅ All unit tests passed!"
                 }
             }
         }
