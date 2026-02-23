@@ -1,0 +1,70 @@
+# Docker ignore file for Spring Boot application
+# Helps reduce build context size and improve build performance
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.classpath
+.project
+.factorypath
+.springBeans
+.sts4-cache/
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test files
+src/test/
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+Jenkinsfile
+deployment/
+
+# Documentation
+*.md
+docs/
+README.adoc
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Other
+*.tmp
+*.bak
+*.swp
+*~
