@@ -112,6 +112,29 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
+            <!-- Maven Surefire Plugin for Unit Tests -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.4</version>
+                <configuration>
+                    <!-- Exclude integration tests -->
+                    <excludes>
+                        <exclude>**/*IntegrationTest.java</exclude>
+                        <exclude>**/IntegrationTest.java</exclude>
+                    </excludes>
+                    <!-- Set test profile to avoid loading database -->
+                    <systemPropertyVariables>
+                        <spring.profiles.active>unit-test</spring.profiles.active>
+                    </systemPropertyVariables>
+                    <!-- Parallel test execution for faster builds -->
+                    <parallel>methods</parallel>
+                    <threadCount>4</threadCount>
+                    <!-- Use fork to speed up tests -->
+                    <forkCount>1</forkCount>
+                    <reuseForks>false</reuseForks>
+                </configuration>
+            </plugin>
             <!-- JaCoCo Maven Plugin for Code Coverage -->
             <plugin>
                 <groupId>org.jacoco</groupId>

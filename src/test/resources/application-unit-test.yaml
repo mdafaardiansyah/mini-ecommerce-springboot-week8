@@ -1,0 +1,37 @@
+# Unit Test Configuration - NO DATABASE
+# This configuration is for pure unit tests with Mockito
+# Tests should NOT load Spring context and should NOT connect to any database
+
+spring:
+  # Disable auto-configuration that requires database
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceTransactionManagerAutoConfiguration
+
+  # No datasource needed for unit tests
+  datasource:
+    url: none
+    driver-class-name: none
+
+  # Disable JPA for unit tests
+  jpa:
+    hibernate:
+      ddl-auto: none
+
+# Disable unnecessary features
+server:
+  port: 0 # Random port, not used anyway
+
+springdoc:
+  swagger-ui:
+    enabled: false
+
+# Minimal logging
+logging:
+  level:
+    root: ERROR
+    edts.week8_practice1: WARN
+    org.springframework: ERROR
+    org.hibernate: ERROR

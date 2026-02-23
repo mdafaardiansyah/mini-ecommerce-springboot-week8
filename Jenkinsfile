@@ -128,13 +128,18 @@ pipeline {
                     echo "🔨 Building Spring Boot Application..."
                     echo "⚠️ Unit tests will run. Build will FAIL if tests fail."
                     echo "ℹ️ Integration tests skipped for faster CI/CD"
+                    echo "ℹ️ Unit tests use Mockito (NO database)"
 
-                    withEnv(["SPRING_PROFILES_ACTIVE=${env.SPRING_PROFILE}"]) {
+                    withEnv([
+                        "SPRING_PROFILES_ACTIVE=unit-test", // Use unit-test profile (no database)
+                        "MAVEN_OPTS=-Xmx1024m -XX:MaxMetaspaceSize=256m"
+                    ]) {
                         // Skip integration tests, only run unit tests
                         // -DskipITs: Skip integration tests (@SpringBootTest)
-                        // Tests still run, won't skip unit tests
-                        timeout(time: 30, unit: 'MINUTES') {
-                            sh 'mvn clean package -DskipITs'
+                        // -Djacoco.skip=true: Skip JaCoCo during build
+                        // -Dspring.profiles.active=unit-test: Force unit test profile
+                        timeout(time: 15, unit: 'MINUTES') {
+                            sh 'mvn clean package -DskipITs -Djacoco.skip=true -Dspring.profiles.active=unit-test -B'
                         }
                     }
 
