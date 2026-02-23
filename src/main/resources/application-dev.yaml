@@ -38,7 +38,7 @@ logging:
     console: "%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %clr([%thread]){magenta} %clr(%-5level){highlight} %clr([%X{traceId},%X{spanId}]){yellow} %clr(%logger{36}){cyan} - %msg%n"
   level:
     root: INFO
-    edts.week7_practice1: DEBUG
+    edts.week8_practice1: DEBUG
     org.hibernate.SQL: DEBUG
     org.hibernate.type.descriptor.sql.BasicBinder: TRACE
     org.springframework.web: DEBUG

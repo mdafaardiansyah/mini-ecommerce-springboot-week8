@@ -1,6 +1,6 @@
 spring:
   application:
-    name: Week7_Practice1
+    name: Week8_Practice1
   profiles:
     active: ${SPRING_PROFILE:dev}
 
@@ -50,7 +50,7 @@ logging:
     file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level [%X{traceId},%X{spanId}] %logger{36} - %msg%n"
   level:
     root: ${LOG_LEVEL_ROOT:INFO}
-    edts.week7_practice1: ${LOG_LEVEL_APP:DEBUG}
+    edts.week8_practice1: ${LOG_LEVEL_APP:DEBUG}
     org.hibernate.SQL: ${HIBERNATE_SQL_LOG:DEBUG}
     org.hibernate.type.descriptor.sql.BasicBinder: ${HIBERNATE_BINDER_LOG:TRACE}
   file:

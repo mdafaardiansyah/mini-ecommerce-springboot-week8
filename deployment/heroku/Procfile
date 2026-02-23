@@ -1,0 +1,6 @@
+# Spring Boot Application - Heroku Procfile
+# This file tells Heroku how to run your application..
+
+# Web process type - runs the Spring Boot jar file
+# Heroku automatically sets $PORT variable, we use it here
+web: java $JAVA_OPTS -jar target/Week6_Practice1-0.0.1-SNAPSHOT.jar --server.port=$PORT

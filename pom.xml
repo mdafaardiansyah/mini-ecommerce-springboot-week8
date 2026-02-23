@@ -9,10 +9,10 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>edts</groupId>
-    <artifactId>Week7_Practice1</artifactId>
+    <artifactId>Week8_Practice1</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>Week7_Practice1</name>
-    <description>Week7_Practice1</description>
+    <name>Week8_Practice1</name>
+    <description>Week8_Practice1</description>
     <url/>
     <licenses>
         <license/>

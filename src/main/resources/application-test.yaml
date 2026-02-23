@@ -32,7 +32,7 @@ springdoc:
 logging:
   level:
     root: WARN
-    edts.week7_practice1: INFO
+    edts.week8_practice1: INFO
     org.hibernate.SQL: WARN
     org.springframework.web: WARN
     org.springframework.test: INFO
