@@ -69,6 +69,74 @@ pipeline {
 
     stages {
         // ============================================================
+        // STAGE 0: Check System Resources
+        // ============================================================
+        stage('System Check') {
+            steps {
+                script {
+                    echo "🔍 Checking Jenkins Agent System Resources..."
+
+                    sh '''
+                        echo "=========================================="
+                        echo "SYSTEM RESOURCES DIAGNOSTIC"
+                        echo "=========================================="
+
+                        echo ""
+                        echo "📊 CPU Info:"
+                        echo "----------------------------------------"
+                        nproc || echo "CPU cores: Unknown"
+                        grep -c ^processor /proc/cpuinfo 2>/dev/null || echo "CPU count: Unknown"
+
+                        echo ""
+                        echo "💾 Memory Info:"
+                        echo "----------------------------------------"
+                        free -h || echo "Memory info unavailable"
+
+                        echo ""
+                        echo "💽 Disk Info:"
+                        echo "----------------------------------------"
+                        df -h / || echo "Disk info unavailable"
+
+                        echo ""
+                        echo "🐳 Docker Status:"
+                        echo "----------------------------------------"
+                        docker --version 2>/dev/null || echo "Docker: NOT INSTALLED"
+
+                        echo ""
+                        echo "☕ Java Info:"
+                        echo "----------------------------------------"
+                        java -version 2>&1 | head -3
+
+                        echo ""
+                        echo "🔧 Maven Info:"
+                        echo "----------------------------------------"
+                        mvn -version | head -3
+
+                        echo ""
+                        echo "📦 Current Java Processes:"
+                        echo "----------------------------------------"
+                        ps aux | grep -i java | grep -v grep || echo "No Java processes running"
+
+                        echo ""
+                        echo "⏱️  System Load:"
+                        echo "----------------------------------------"
+                        uptime || echo "Uptime unavailable"
+
+                        echo ""
+                        echo "🚨 Current Memory Usage (Top 5):"
+                        echo "----------------------------------------"
+                        ps aux --sort=-%mem | head -6 || echo "Process info unavailable"
+
+                        echo ""
+                        echo "=========================================="
+                        echo "END OF DIAGNOSTIC"
+                        echo "=========================================="
+                    '''
+                }
+            }
+        }
+
+        // ============================================================
         // STAGE 1: Checkout
         // ============================================================
         stage('Checkout') {
@@ -135,20 +203,22 @@ pipeline {
 
                     withEnv([
                         "SPRING_PROFILES_ACTIVE=unit-test",
-                        "MAVEN_OPTS=-Xmx512m -XX:MaxMetaspaceSize=128m" // Reduced memory for faster execution
+                        "MAVEN_OPTS=-Xmx256m -XX:MaxMetaspaceSize=128m" // Further reduced for low-memory agents
                     ]) {
-                        // Optimized Maven build for fast CI/CD
-                        timeout(time: 10, unit: 'MINUTES') {
+                        // Optimized Maven build with verbose output to see what's happening
+                        timeout(time: 20, unit: 'MINUTES') {
                             sh '''
+                                echo "🔍 Starting Maven build with verbose output..."
+                                echo "This will show which dependencies are being downloaded..."
+
                                 mvn clean package \
                                     -DskipITs \
                                     -Djacoco.skip=true \
                                     -Dspring.profiles.active=unit-test \
                                     -Dmaven.test.failure.ignore=false \
-                                    -Dsurefire.timeout=60 \
                                     -B \
-                                    -q \
-                                    -Dstyle.color=never
+                                    -X \
+                                    2>&1 | tee maven-build.log
                             '''
                         }
                     }
