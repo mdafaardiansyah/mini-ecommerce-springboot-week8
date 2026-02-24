@@ -203,22 +203,61 @@ pipeline {
 
                     withEnv([
                         "SPRING_PROFILES_ACTIVE=unit-test",
-                        "MAVEN_OPTS=-Xmx256m -XX:MaxMetaspaceSize=128m" // Further reduced for low-memory agents
+                        "MAVEN_OPTS=-Xmx256m -XX:MaxMetaspaceSize=128m" // Reduced for low-memory agents
                     ]) {
-                        // Optimized Maven build with verbose output to see what's happening
-                        timeout(time: 20, unit: 'MINUTES') {
+                        // Smart build strategy: Try offline first, then online if needed
+                        timeout(time: 30, unit: 'MINUTES') {
                             sh '''
-                                echo "🔍 Starting Maven build with verbose output..."
-                                echo "This will show which dependencies are being downloaded..."
+                                echo "🔍 Smart Maven Build Strategy..."
+                                echo "Step 1: Try offline mode (fast - uses cached dependencies)"
+                                echo "        If this fails, will retry with online mode"
+                                echo ""
 
-                                mvn clean package \
+                                # Try offline build first (much faster if dependencies are cached)
+                                if mvn clean package \
+                                    -o \
                                     -DskipITs \
                                     -Djacoco.skip=true \
                                     -Dspring.profiles.active=unit-test \
                                     -Dmaven.test.failure.ignore=false \
-                                    -B \
-                                    -X \
-                                    2>&1 | tee maven-build.log
+                                    -B; then
+                                    echo "✅ Offline build successful!"
+                                else
+                                    echo ""
+                                    echo "⚠️ Offline build failed (missing dependencies)"
+                                    echo "Step 2: Retrying with online mode..."
+                                    echo ""
+
+                                    # Online build with timeout wrapper
+                                    # The longest part is dependency collection, so we're more lenient
+                                    if mvn clean package \
+                                        -DskipITs \
+                                        -Djacoco.skip=true \
+                                        -Dspring.profiles.active=unit-test \
+                                        -Dmaven.test.failure.ignore=false \
+                                        -B \
+                                        -U \
+                                        2>&1 | tee maven-build.log; then
+                                        echo "✅ Online build successful!"
+                                    else
+                                        echo ""
+                                        echo "❌ Build failed! Check maven-build.log for details"
+                                        echo ""
+                                        echo "🔍 Last 50 lines of build log:"
+                                        tail -50 maven-build.log
+                                        exit 1
+                                    fi
+                                fi
+
+                                echo ""
+                                echo "📊 Build statistics:"
+                                if [ -f maven-build.log ]; then
+                                    echo "Dependency collection time:"
+                                    grep -o "DfDependencyCollector.collectTime=[0-9]*" maven-build.log | head -1 || echo "  (not available)"
+                                    echo ""
+                                    echo "Total build time:"
+                                    grep -o "Total time:[^\\n]*" maven-build.log || echo "  (not available)"
+                                fi
                             '''
                         }
                     }
