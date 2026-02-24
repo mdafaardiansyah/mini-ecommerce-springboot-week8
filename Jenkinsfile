@@ -141,9 +141,37 @@ pipeline {
         // ============================================================
         stage('Checkout') {
             steps {
-                checkout scm
+                // Clean workspace before checkout to ensure fresh code
+                cleanWs()
+
+                // Checkout with options to ensure fresh code
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: '*/master']],
+                    userRemoteConfigs: [[url: 'https://github.com/mdafaardiansyah/mini-ecommerce-springboot-week8.git']],
+                    extensions: [
+                        [$class: 'CleanBeforeCheckout'],
+                        [$class: 'CloneOption', depth: 0, noTags: false, reference: '', shallow: false]
+                    ]
+                ])
 
                 script {
+                    // Verify we got the latest code
+                    sh '''
+                        echo "=========================================="
+                        echo "GIT INFORMATION"
+                        echo "=========================================="
+                        echo "Current commit:"
+                        git log -1 --oneline
+                        echo ""
+                        echo "Remote status:"
+                        git status
+                        echo ""
+                        echo "Latest commit on remote:"
+                        git ls-remote origin HEAD | head -1
+                        echo "=========================================="
+                    '''
+
                     // Extract Git info
                     env.GIT_BRANCH = sh(
                         script: 'git rev-parse --abbrev-ref HEAD',
@@ -200,6 +228,10 @@ pipeline {
                     echo "⚠️ Unit tests will run. Build will FAIL if tests fail."
                     echo "ℹ️ Integration tests skipped for faster CI/CD"
                     echo "ℹ️ Unit tests use Mockito (NO database)"
+                    echo ""
+                    echo "📌 Build strategy: Offline-first for fast builds"
+                    echo "   - First build: Downloads dependencies (slow)"
+                    echo "   - Subsequent builds: Uses cached deps (fast)"
 
                     withEnv([
                         "SPRING_PROFILES_ACTIVE=unit-test",
