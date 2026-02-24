@@ -459,12 +459,7 @@ pipeline {
 
                     echo "✅ Docker image built: ${fullImageName}:${IMAGE_TAG}"
                     sh """
-                        if docker --version &> /dev/null; then
-                            DOCKER="docker"
-                        else
-                            DOCKER="docker"
-                        fi
-                        \docker images ${fullImageName} --format 'table {{.Repository}}\t{{.Tag}}\t{{.Size}}'
+                        docker images ${fullImageName} --format 'table {{.Repository}}\\t{{.Tag}}\\t{{.Size}}'
                     """
                 }
             }
@@ -478,21 +473,14 @@ pipeline {
                 script {
                     echo "📤 Pushing Docker image to Docker Hub..."
 
-                    // Login to Docker Hub and push
+                    // Login to Docker Hub and push (Jenkins runs as root)
                     sh """
-                        # Test if docker needs sudo
-                        if docker --version &> /dev/null; then
-                            DOCKER="docker"
-                        else
-                            DOCKER="docker"
-                        fi
-
                         # Login to Docker Hub
-                        echo "${DOCKER_HUB_CREDENTIALS}" | \docker login --username-password-stdin
+                        echo "${DOCKER_HUB_CREDENTIALS}" | docker login --username-password-stdin
 
                         # Push both tagged images
-                        \docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
-                        \docker push ${DOCKER_IMAGE}:latest
+                        docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
+                        docker push ${DOCKER_IMAGE}:latest
                     """
 
                     echo "✅ Docker image pushed to Docker Hub"
@@ -560,13 +548,6 @@ pipeline {
                     // Deploy by creating Heroku.yml that pulls from Docker Hub
                     // Or we can use Heroku Container Registry with image from Docker Hub
                     sh """
-                        # Test if docker needs sudo
-                        if docker --version &> /dev/null; then
-                            DOCKER="docker"
-                        else
-                            DOCKER="docker"
-                        fi
-
                         echo "Setting Heroku to use Docker image from Docker Hub..."
 
                         # Set Docker image location for Heroku
@@ -574,10 +555,10 @@ pipeline {
 
                         # Use Heroku Container Registry to deploy
                         # Pull image from Docker Hub, tag it for Heroku, push to Heroku Registry, release
-                        \docker pull ${DOCKER_IMAGE}:${IMAGE_TAG}
-                        \docker tag ${DOCKER_IMAGE}:${IMAGE_TAG} registry.heroku.com/${DEPLOY_APP_NAME}/web
-                        echo "${HEROKU_API_KEY}" | \docker login --username=_ --password-stdin registry.heroku.com
-                        \docker push registry.heroku.com/${DEPLOY_APP_NAME}/web
+                        docker pull ${DOCKER_IMAGE}:${IMAGE_TAG}
+                        docker tag ${DOCKER_IMAGE}:${IMAGE_TAG} registry.heroku.com/${DEPLOY_APP_NAME}/web
+                        echo "${HEROKU_API_KEY}" | docker login --username=_ --password-stdin registry.heroku.com
+                        docker push registry.heroku.com/${DEPLOY_APP_NAME}/web
                         heroku container:release web --app "${DEPLOY_APP_NAME}"
                     """
 
