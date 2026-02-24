@@ -83,3 +83,6 @@ bin/
 # Application specific
 application-local.properties
 application-local.yaml
+*.jar
+*.original
+target/

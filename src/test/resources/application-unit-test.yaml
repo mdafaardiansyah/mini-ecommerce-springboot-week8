@@ -28,10 +28,13 @@ springdoc:
   swagger-ui:
     enabled: false
 
-# Minimal logging
+# Minimal logging - DISABLED for faster tests
 logging:
   level:
-    root: ERROR
-    edts.week8_practice1: WARN
-    org.springframework: ERROR
-    org.hibernate: ERROR
+    root: OFF
+    edts.week8_practice1: OFF
+    org.springframework: OFF
+    org.hibernate: OFF
+    com.zaxxer.hikari: OFF
+  pattern:
+    console: ""

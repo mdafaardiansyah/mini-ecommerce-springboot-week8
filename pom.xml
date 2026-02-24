@@ -127,12 +127,14 @@
                     <systemPropertyVariables>
                         <spring.profiles.active>unit-test</spring.profiles.active>
                     </systemPropertyVariables>
-                    <!-- Parallel test execution for faster builds -->
-                    <parallel>methods</parallel>
-                    <threadCount>4</threadCount>
-                    <!-- Use fork to speed up tests -->
+                    <!-- OPTIMIZED FOR LOW-MEMORY ENVIRONMENTS (Jenkins, CI/CD) -->
+                    <!-- Disable parallel execution - faster in low-memory environments -->
+                    <parallel>none</parallel>
+                    <!-- Reuse forks to reduce JVM startup overhead -->
                     <forkCount>1</forkCount>
-                    <reuseForks>false</reuseForks>
+                    <reuseForks>true</reuseForks>
+                    <!-- Reduce memory per test -->
+                    <argLine>-Xmx128m -XX:MaxMetaspaceSize=64m</argLine>
                 </configuration>
             </plugin>
             <!-- JaCoCo Maven Plugin for Code Coverage -->
