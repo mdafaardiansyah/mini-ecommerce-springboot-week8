@@ -378,52 +378,47 @@ pipeline {
 
                             echo "Installing Docker on $OS..."
 
-                            # Install Docker based on OS
+                            # Install Docker based on OS (NO sudo - Jenkins runs as root)
                             if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
                                 # Ubuntu/Debian
-                                sudo apt-get update
-                                sudo apt-get install -y ca-certificates curl gnupg
-                                sudo install -m 0755 -d /etc/apt/keyrings
-                                curl -fsSL https://download.docker.com/linux/$OS/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-                                sudo chmod a+r /etc/apt/keyrings/docker.gpg
+                                apt-get update
+                                apt-get install -y ca-certificates curl gnupg
+                                install -m 0755 -d /etc/apt/keyrings
+                                curl -fsSL https://download.docker.com/linux/$OS/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+                                chmod a+r /etc/apt/keyrings/docker.gpg
                                 echo \
                                   "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$OS \
                                   \$(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-                                  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-                                sudo apt-get update
-                                sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+                                  tee /etc/apt/sources.list.d/docker.list > /dev/null
+                                apt-get update
+                                apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
                             elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
                                 # CentOS/RHEL
-                                sudo yum install -y yum-utils
-                                sudo yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-                                sudo yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+                                yum install -y yum-utils
+                                yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+                                yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 
                             elif [ "$OS" = "amzn" ]; then
                                 # Amazon Linux
-                                sudo yum install -y docker
+                                yum install -y docker
                             else
                                 echo "⚠️ Unsupported OS: $OS"
                                 echo "Trying universal install script..."
                                 curl -fsSL https://get.docker.com -o get-docker.sh
-                                sudo sh get-docker.sh
+                                sh get-docker.sh
                             fi
 
                             # Start Docker service
-                            sudo systemctl start docker
-                            sudo systemctl enable docker
-
-                            # Add current user to docker group
-                            sudo usermod -aG docker $(whoami) || true
+                            service docker start || systemctl start docker
 
                             echo "✅ Docker installed successfully"
-                            echo "⚠️ Note: Using 'sudo docker' for this session (group permission takes effect on next login)"
                         else
                             echo "✅ Docker already installed"
                         fi
 
-                        # Test docker (with or without sudo)
-                        sudo docker --version || docker --version
+                        # Test docker
+                        docker --version
                         echo "✅ Docker is ready!"
                     '''
                 }
@@ -444,20 +439,12 @@ pipeline {
                     // Full image name
                     def fullImageName = "${dockerHubUsername}/${IMAGE_NAME}"
 
-                    // Build with metadata
-                    // Try regular docker first, fallback to sudo docker
+                    // Build with metadata (Jenkins runs as root, no sudo needed)
                     sh """
-                        # Test if docker needs sudo
-                        if docker --version &> /dev/null; then
-                            DOCKER="docker"
-                        else
-                            DOCKER="sudo docker"
-                        fi
-
-                        echo "Using: \$DOCKER"
+                        echo "Building Docker image: ${fullImageName}:${IMAGE_TAG}"
 
                         # Build image
-                        \$DOCKER build \
+                        docker build \
                             -t ${fullImageName}:${IMAGE_TAG} \
                             -t ${fullImageName}:latest \
                             --build-arg SPRING_PROFILES_ACTIVE=${env.SPRING_PROFILE} \
@@ -475,9 +462,9 @@ pipeline {
                         if docker --version &> /dev/null; then
                             DOCKER="docker"
                         else
-                            DOCKER="sudo docker"
+                            DOCKER="docker"
                         fi
-                        \$DOCKER images ${fullImageName} --format 'table {{.Repository}}\t{{.Tag}}\t{{.Size}}'
+                        \docker images ${fullImageName} --format 'table {{.Repository}}\t{{.Tag}}\t{{.Size}}'
                     """
                 }
             }
@@ -497,15 +484,15 @@ pipeline {
                         if docker --version &> /dev/null; then
                             DOCKER="docker"
                         else
-                            DOCKER="sudo docker"
+                            DOCKER="docker"
                         fi
 
                         # Login to Docker Hub
-                        echo "${DOCKER_HUB_CREDENTIALS}" | \$DOCKER login --username-password-stdin
+                        echo "${DOCKER_HUB_CREDENTIALS}" | \docker login --username-password-stdin
 
                         # Push both tagged images
-                        \$DOCKER push ${DOCKER_IMAGE}:${IMAGE_TAG}
-                        \$DOCKER push ${DOCKER_IMAGE}:latest
+                        \docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
+                        \docker push ${DOCKER_IMAGE}:latest
                     """
 
                     echo "✅ Docker image pushed to Docker Hub"
@@ -577,7 +564,7 @@ pipeline {
                         if docker --version &> /dev/null; then
                             DOCKER="docker"
                         else
-                            DOCKER="sudo docker"
+                            DOCKER="docker"
                         fi
 
                         echo "Setting Heroku to use Docker image from Docker Hub..."
@@ -587,10 +574,10 @@ pipeline {
 
                         # Use Heroku Container Registry to deploy
                         # Pull image from Docker Hub, tag it for Heroku, push to Heroku Registry, release
-                        \$DOCKER pull ${DOCKER_IMAGE}:${IMAGE_TAG}
-                        \$DOCKER tag ${DOCKER_IMAGE}:${IMAGE_TAG} registry.heroku.com/${DEPLOY_APP_NAME}/web
-                        echo "${HEROKU_API_KEY}" | \$DOCKER login --username=_ --password-stdin registry.heroku.com
-                        \$DOCKER push registry.heroku.com/${DEPLOY_APP_NAME}/web
+                        \docker pull ${DOCKER_IMAGE}:${IMAGE_TAG}
+                        \docker tag ${DOCKER_IMAGE}:${IMAGE_TAG} registry.heroku.com/${DEPLOY_APP_NAME}/web
+                        echo "${HEROKU_API_KEY}" | \docker login --username=_ --password-stdin registry.heroku.com
+                        \docker push registry.heroku.com/${DEPLOY_APP_NAME}/web
                         heroku container:release web --app "${DEPLOY_APP_NAME}"
                     """
 
@@ -696,9 +683,6 @@ pipeline {
             script {
                 echo "❌ Pipeline FAILED!"
 
-                // Only send notification if it's a real failure, not just missing test reports
-                def currentBuild = currentBuild.rawBuild
-
                 try {
                     withCredentials([string(credentialsId: 'discord-notification', variable: 'DISCORD_WEBHOOK')]) {
                         discordSend(
@@ -723,10 +707,8 @@ pipeline {
         always {
             // Cleanup Docker images
             sh '''
-                if docker --version &> /dev/null; then
+                if command -v docker &> /dev/null; then
                     docker system prune -f || true
-                else
-                    sudo docker system prune -f || true
                 fi
             '''
             echo "Pipeline completed"
