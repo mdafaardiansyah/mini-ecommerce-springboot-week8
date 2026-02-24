@@ -88,18 +88,21 @@ pipeline {
                     ).trim()
 
                     // Auto-detect environment from branch
-                    if (env.GIT_BRANCH == 'main' || env.GIT_BRANCH == 'master') {
+                    // Remove 'origin/' prefix if present
+                    def cleanBranch = env.GIT_BRANCH.replace('origin/', '')
+
+                    if (cleanBranch == 'main' || cleanBranch == 'master') {
                         env.SPRING_PROFILE = 'prod'
                         env.DEPLOY_ENV = 'production'
                         env.DEPLOY_APP_NAME = HEROKU_APP_NAME_PROD
                         env.IMAGE_NAME = IMAGE_NAME_PROD
-                        echo "🚀 Branch: main → PRODUCTION"
-                    } else if (env.GIT_BRANCH == 'develop') {
+                        echo "🚀 Branch: ${cleanBranch} → PRODUCTION"
+                    } else if (cleanBranch == 'develop') {
                         env.SPRING_PROFILE = 'dev'
                         env.DEPLOY_ENV = 'development'
                         env.DEPLOY_APP_NAME = HEROKU_APP_NAME_DEV
                         env.IMAGE_NAME = IMAGE_NAME_DEV
-                        echo "🔧 Branch: develop → DEVELOPMENT"
+                        echo "🔧 Branch: ${cleanBranch} → DEVELOPMENT"
                     } else {
                         // Use parameter for other branches
                         if (params.DEPLOY_ENV == 'production') {
@@ -109,7 +112,7 @@ pipeline {
                             env.DEPLOY_APP_NAME = HEROKU_APP_NAME_DEV
                             env.IMAGE_NAME = IMAGE_NAME_DEV
                         }
-                        echo "ℹ️ Branch: ${env.GIT_BRANCH} → ${env.DEPLOY_ENV}"
+                        echo "ℹ️ Branch: ${cleanBranch} → ${env.DEPLOY_ENV}"
                     }
 
                     echo "Spring Profile: ${env.SPRING_PROFILE}"
@@ -131,15 +134,22 @@ pipeline {
                     echo "ℹ️ Unit tests use Mockito (NO database)"
 
                     withEnv([
-                        "SPRING_PROFILES_ACTIVE=unit-test", // Use unit-test profile (no database)
-                        "MAVEN_OPTS=-Xmx1024m -XX:MaxMetaspaceSize=256m"
+                        "SPRING_PROFILES_ACTIVE=unit-test",
+                        "MAVEN_OPTS=-Xmx512m -XX:MaxMetaspaceSize=128m" // Reduced memory for faster execution
                     ]) {
-                        // Skip integration tests, only run unit tests
-                        // -DskipITs: Skip integration tests (@SpringBootTest)
-                        // -Djacoco.skip=true: Skip JaCoCo during build
-                        // -Dspring.profiles.active=unit-test: Force unit test profile
-                        timeout(time: 15, unit: 'MINUTES') {
-                            sh 'mvn clean package -DskipITs -Djacoco.skip=true -Dspring.profiles.active=unit-test -B'
+                        // Optimized Maven build for fast CI/CD
+                        timeout(time: 10, unit: 'MINUTES') {
+                            sh '''
+                                mvn clean package \
+                                    -DskipITs \
+                                    -Djacoco.skip=true \
+                                    -Dspring.profiles.active=unit-test \
+                                    -Dmaven.test.failure.ignore=false \
+                                    -Dsurefire.timeout=60 \
+                                    -B \
+                                    -q \
+                                    -Dstyle.color=never
+                            '''
                         }
                     }
 
