@@ -225,11 +225,9 @@ pipeline {
                 script {
                     echo "🐳 Building Docker image..."
 
-                    // Get Docker Hub username from credentials
-                    def dockerHubUsername = DOCKER_HUB_CREDENTIALS.split(':')[0]
-
-                    // Full image name
-                    def fullImageName = "${dockerHubUsername}/${IMAGE_NAME}"
+                    // Use global DOCKER_REPO instead of extracting from credential
+                    // This ensures image always goes to the correct Docker Hub namespace
+                    def fullImageName = "${DOCKER_REPO}/${IMAGE_NAME}"
 
                     // Build with metadata
                     sh """
@@ -385,13 +383,26 @@ pipeline {
                 script {
                     echo "🏥 Checking application health..."
 
-                    // Get app URL
+                    // Get app URL with more robust parsing
                     def appUrl = sh(
                         script: """
-                            heroku apps:info --app ${DEPLOY_APP_NAME} --json | grep -o '"web_url":"[^"]*"' | cut -d'"' -f4
+                            heroku apps:info --app ${DEPLOY_APP_NAME} | grep 'Web URL:' | awk '{print \$3}'
                         """,
                         returnStdout: true
                     ).trim()
+
+                    // Remove trailing slash if exists
+                    if (appUrl.endsWith('/')) {
+                        appUrl = appUrl.substring(0, appUrl.length() - 1)
+                    }
+
+                    // Fallback URL if parsing fails
+                    if (!appUrl || appUrl == "") {
+                        appUrl = "https://${DEPLOY_APP_NAME}.herokuapp.com"
+                        echo "⚠️ Auto-detect URL failed. Using fallback: ${appUrl}"
+                    } else {
+                        echo "✅ Detected App URL: ${appUrl}"
+                    }
 
                     env.APP_URL = appUrl
 
@@ -399,32 +410,35 @@ pipeline {
                     echo "⏳ Waiting for application to start..."
                     sleep time: 60, unit: 'SECONDS'
 
-                    // Health check
+                    // Health check with proper quoting
                     withEnv(["APP_URL=${appUrl}"]) {
-                        sh """
+                        sh '''
                             set +e
                             MAX_RETRIES=10
                             RETRY_COUNT=0
 
-                            while [ \${RETRY_COUNT} -lt \${MAX_RETRIES} ]; do
-                                echo "Health check attempt \$((RETRY_COUNT + 1))"
+                            while [ ${RETRY_COUNT} -lt ${MAX_RETRIES} ]; do
+                                echo "Health check attempt $((RETRY_COUNT + 1))"
+                                echo "Checking: ${APP_URL}/actuator/health"
 
-                                HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" \${APP_URL}/actuator/health || echo "000")
+                                # Use quoted URL to handle special characters
+                                HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${APP_URL}/actuator/health" || echo "000")
 
-                                if [ "\${HTTP_CODE}" = "200" ]; then
+                                if [ "${HTTP_CODE}" = "200" ]; then
                                     echo "✅ Health check passed!"
-                                    curl -s \${APP_URL}/actuator/health | jq . || true
+                                    curl -s "${APP_URL}/actuator/health" | jq . || true
                                     exit 0
                                 fi
 
-                                echo "⏳ Waiting... (HTTP: \${HTTP_CODE})"
+                                echo "⏳ Waiting... (HTTP: ${HTTP_CODE})"
                                 sleep 10
-                                RETRY_COUNT=\$((RETRY_COUNT + 1))
+                                RETRY_COUNT=$((RETRY_COUNT + 1))
                             done
 
-                            echo "❌ Health check failed"
+                            echo "❌ Health check failed after ${MAX_RETRIES} attempts"
+                            echo "App URL: ${APP_URL}"
                             exit 1
-                        """
+                        '''
                     }
                 }
             }
