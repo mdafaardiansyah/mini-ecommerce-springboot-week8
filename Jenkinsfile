@@ -40,6 +40,14 @@ pipeline {
     }
 
     environment {
+        // ==========================================
+        // DOCKER IN DOCKER (DIND) CONFIGURATION
+        // ==========================================
+        DOCKER_HOST = 'tcp://docker:2376'
+        DOCKER_CERT_PATH = '/certs/client'
+        DOCKER_TLS_VERIFY = '1'
+        // ==========================================
+
         // Docker Hub Configuration
         DOCKER_HUB_CREDENTIALS = credentials('docker-hub')
         DOCKER_REPO = 'ardidafa' // TODO: Change to your Docker Hub username
@@ -194,7 +202,7 @@ pipeline {
                     echo "🐳 Verifying Docker is available..."
 
                     sh '''
-                        # UBAH BARIS DI BAWAH INI (Ganti &> dengan > /dev/null 2>&1)
+                        # Pengecekan posix standard yang sudah kamu perbaiki
                         if ! command -v docker > /dev/null 2>&1; then
                             echo "❌ Docker is NOT installed on this Jenkins agent"
                             echo ""
@@ -476,9 +484,9 @@ pipeline {
         }
 
         always {
-            // Cleanup Docker images
+            // Cleanup Docker images (diperbaiki agar aman dari error)
             sh '''
-                if command -v docker &> /dev/null; then
+                if command -v docker > /dev/null 2>&1; then
                     docker system prune -f || true
                 fi
             '''
