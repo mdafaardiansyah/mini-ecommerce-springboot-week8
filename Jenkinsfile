@@ -1,15 +1,22 @@
 /**
- * Jenkins Pipeline for Order Management API - Simplified
+ * Jenkins Pipeline for Order Management API - Docker + Heroku
  *
- * STRATEGY:
- * 1. Build JAR (with adaptive test strategy)
- * 2. Push JAR directly to Heroku (NO Docker needed)
- * 3. Health check
+ * Deployment Strategy:
+ * - develop branch → dev profile → week8-practice1-dev
+ * - main/master branch → prod profile → week8-practice1-prod
  *
- * Why NO Docker?
- * - Jenkins agent doesn't have permission to install Docker
- * - Heroku can deploy JAR directly without Docker
- * - Simpler, faster, more reliable
+ * Requirements:
+ * ✅ Use Docker for deployment
+ * ✅ Auto-restart containers (Heroku handles this)
+ * ✅ Reflect latest code (always build fresh image)
+ * ✅ Use correct Spring profile
+ * ✅ If unit tests failed, build failed
+ *
+ * Prerequisites:
+ * - Docker MUST be pre-installed on Jenkins agent
+ * - Docker Hub credentials configured
+ * - Heroku API key configured
+ * - Database credentials configured
  */
 
 pipeline {
@@ -33,6 +40,12 @@ pipeline {
     }
 
     environment {
+        // Docker Hub Configuration
+        DOCKER_HUB_CREDENTIALS = credentials('docker-hub')
+        DOCKER_REPO = 'ardidafa' // TODO: Change to your Docker Hub username
+        IMAGE_NAME_DEV = 'week8-practice1-dev'
+        IMAGE_NAME_PROD = 'week8-practice1-prod'
+
         // Heroku Configuration
         HEROKU_API_KEY = credentials('HEROKU_API_KEY')
         HEROKU_APP_NAME_DEV = 'week8-practice1-dev'
@@ -74,120 +87,72 @@ pipeline {
                     ).trim()
 
                     // Auto-detect environment from branch
+                    // Remove 'origin/' prefix if present
                     def cleanBranch = env.GIT_BRANCH.replace('origin/', '')
 
                     if (cleanBranch == 'main' || cleanBranch == 'master') {
                         env.SPRING_PROFILE = 'prod'
                         env.DEPLOY_ENV = 'production'
                         env.DEPLOY_APP_NAME = HEROKU_APP_NAME_PROD
+                        env.IMAGE_NAME = IMAGE_NAME_PROD
                         echo "🚀 Branch: ${cleanBranch} → PRODUCTION"
                     } else if (cleanBranch == 'develop') {
                         env.SPRING_PROFILE = 'dev'
                         env.DEPLOY_ENV = 'development'
                         env.DEPLOY_APP_NAME = HEROKU_APP_NAME_DEV
+                        env.IMAGE_NAME = IMAGE_NAME_DEV
                         echo "🔧 Branch: ${cleanBranch} → DEVELOPMENT"
                     } else {
+                        // Use parameter for other branches
                         if (params.DEPLOY_ENV == 'production') {
                             env.DEPLOY_APP_NAME = HEROKU_APP_NAME_PROD
+                            env.IMAGE_NAME = IMAGE_NAME_PROD
                         } else {
                             env.DEPLOY_APP_NAME = HEROKU_APP_NAME_DEV
+                            env.IMAGE_NAME = IMAGE_NAME_DEV
                         }
                         echo "ℹ️ Branch: ${cleanBranch} → ${env.DEPLOY_ENV}"
                     }
 
                     echo "Spring Profile: ${env.SPRING_PROFILE}"
                     echo "Heroku App: ${DEPLOY_APP_NAME}"
+                    echo "Docker Image: ${DOCKER_REPO}/${IMAGE_NAME}"
                 }
             }
         }
 
         // ============================================================
-        // STAGE 2: Build with Maven (Adaptive Test Strategy)
+        // STAGE 2: Build with Maven (Unit Tests MANDATORY)
         // ============================================================
         stage('Build') {
             steps {
                 script {
                     echo "🔨 Building Spring Boot Application..."
-                    echo "⚠️ Unit tests will run. Build will FAIL if tests fail."
-                    echo ""
-                    echo "📌 Build strategy: Adaptive for low-memory Jenkins agents"
-                    echo "   - Tests with 10min timeout (optimized surefire config)"
-                    echo "   - If tests timeout, retry without tests (for deployment only)"
+                    echo "⚠️ Unit tests are MANDATORY. Build will FAIL if tests fail."
+                    echo "ℹ️ Integration tests skipped for faster CI/CD"
+                    echo "ℹ️ Unit tests use Mockito (NO database)"
 
                     withEnv([
                         "SPRING_PROFILES_ACTIVE=unit-test",
                         "MAVEN_OPTS=-Xmx256m -XX:MaxMetaspaceSize=128m"
                     ]) {
-                        // Try with tests first, but with aggressive timeout
-                        def buildSuccess = false
+                        // Build with tests - NO SKIP, NO FALLBACK
+                        // Tests MUST pass for build to succeed
+                        timeout(time: 30, unit: 'MINUTES') {
+                            sh '''
+                                echo "🔍 Building with UNIT TESTS (mandatory)..."
+                                echo ""
 
-                        try {
-                            timeout(time: 10, unit: 'MINUTES') {
-                                sh '''
-                                    echo "🔍 Attempting build WITH unit tests..."
-                                    echo "Config: Single-threaded, reuseForks=true, low memory per test"
-                                    echo ""
-
-                                    mvn clean package \
-                                        -o \
-                                        -DskipITs \
-                                        -Djacoco.skip=true \
-                                        -Dspring.profiles.active=unit-test \
-                                        -Dmaven.test.failure.ignore=false \
-                                        -B
-                                '''
-                                buildSuccess = true
-                                echo "✅ Build with tests SUCCESS!"
-                            }
-                        } catch (Exception e) {
-                            echo "⚠️ Build with tests failed or timeout"
-                            echo "Error: ${e.message}"
-                            echo ""
-                            echo "📊 NOTE: Tests verified locally (89 tests pass in 3.5s)"
-                            echo "Issue: Jenkins agent has extremely low memory (388MB available)"
-                            echo "       causing tests to run 100x slower than normal"
-                            echo ""
+                                # Build with tests running
+                                # If tests fail, this entire build FAILS
+                                mvn clean package \
+                                    -DskipITs \
+                                    -Djacoco.skip=true \
+                                    -Dspring.profiles.active=unit-test \
+                                    -Dmaven.test.failure.ignore=false \
+                                    -B
+                            '''
                         }
-
-                        // If tests failed/timeout, try without tests for deployment
-                        if (!buildSuccess) {
-                            echo "🔄 Falling back to build WITHOUT tests..."
-                            echo "⚠️ WARNING: This bypasses tests for deployment purposes only!"
-                            echo "   Tests MUST be run locally before pushing code"
-                            echo ""
-
-                            timeout(time: 10, unit: 'MINUTES') {
-                                sh '''
-                                    echo "🔍 Attempting build WITHOUT tests..."
-                                    echo ""
-
-                                    # Try offline first
-                                    if mvn clean package \
-                                        -o \
-                                        -DskipTests \
-                                        -DskipITs \
-                                        -Djacoco.skip=true \
-                                        -B; then
-                                        echo "✅ Build without tests successful (offline)!"
-                                    else
-                                        echo "⚠️ Offline failed, retrying with online mode..."
-                                        mvn clean package \
-                                            -DskipTests \
-                                            -DskipITs \
-                                            -Djacoco.skip=true \
-                                            -B \
-                                            -U
-                                        echo "✅ Build without tests successful (online)!"
-                                    fi
-                                '''
-                            }
-
-                            echo ""
-                            echo "⚠️ Deployment will proceed WITHOUT test validation"
-                            echo "   Please ensure tests pass locally before merge"
-                        }
-
-                        echo ""
                     }
 
                     // Verify JAR was created
@@ -212,30 +177,117 @@ pipeline {
                 script {
                     echo "🧪 Verifying test results..."
 
-                    // Check if tests were run (surefire-reports exist)
-                    def testReports = sh(
-                        script: 'ls target/surefire-reports/*.xml 2>/dev/null | wc -l',
-                        returnStdout: true
-                    ).trim()
+                    // Publish test results - FAIL BUILD if tests failed
+                    junit testResults: 'target/surefire-reports/*.xml', allowEmptyResults: false
 
-                    if (testReports != "0") {
-                        // Publish test results to Jenkins
-                        junit testResults: 'target/surefire-reports/*.xml', allowEmptyResults: false
-                        echo "✅ All unit tests passed!"
-                    } else {
-                        echo "⚠️ No test results found"
-                        echo "ℹ️ Tests were likely skipped due to timeout (fallback mode)"
-                        echo "ℹ️ JAR was built without tests for deployment purposes"
-                        echo ""
-                        echo "⚠️ IMPORTANT: Please verify tests pass locally before merge!"
-                        echo "   Run: mvn clean test"
-                    }
+                    echo "✅ All unit tests passed! Build can proceed."
                 }
             }
         }
 
         // ============================================================
-        // STAGE 4: Deploy to Heroku (Direct JAR Deployment)
+        // STAGE 4: Verify Docker is Available
+        // ============================================================
+        stage('Verify Docker') {
+            steps {
+                script {
+                    echo "🐳 Verifying Docker is available..."
+
+                    sh '''
+                        if ! command -v docker &> /dev/null; then
+                            echo "❌ Docker is NOT installed on this Jenkins agent"
+                            echo ""
+                            echo "PREREQUISITE: Docker must be pre-installed on Jenkins agent"
+                            echo ""
+                            echo "To install Docker on Jenkins agent:"
+                            echo "1. SSH to Jenkins agent"
+                            echo "2. Run: curl -fsSL https://get.docker.com | sh"
+                            echo "3. Or: apt-get update && apt-get install -y docker-ce"
+                            echo ""
+                            echo "This pipeline CANNOT auto-install Docker due to"
+                            echo "insufficient permissions on Jenkins agent."
+                            exit 1
+                        fi
+
+                        docker --version
+                        echo "✅ Docker is available!"
+                    '''
+                }
+            }
+        }
+
+        // ============================================================
+        // STAGE 5: Build Docker Image
+        // ============================================================
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    echo "🐳 Building Docker image..."
+
+                    // Get Docker Hub username from credentials
+                    def dockerHubUsername = DOCKER_HUB_CREDENTIALS.split(':')[0]
+
+                    // Full image name
+                    def fullImageName = "${dockerHubUsername}/${IMAGE_NAME}"
+
+                    // Build with metadata
+                    sh """
+                        echo "Building Docker image: ${fullImageName}:${IMAGE_TAG}"
+                        echo "Spring Profile: ${env.SPRING_PROFILE}"
+                        echo ""
+
+                        # Build image
+                        docker build \
+                            -t ${fullImageName}:${IMAGE_TAG} \
+                            -t ${fullImageName}:latest \
+                            --build-arg SPRING_PROFILES_ACTIVE=${env.SPRING_PROFILE} \
+                            --build-arg BUILD_DATE=\$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+                            --build-arg VCS_REF=${env.GIT_COMMIT_SHORT} \
+                            --build-arg VERSION=${IMAGE_TAG} \
+                            .
+
+                        echo ""
+                        echo "✅ Docker image built successfully!"
+                        docker images ${fullImageName} --format 'table {{.Repository}}\t{{.Tag}}\t{{.Size}}'
+                    """
+
+                    // Store for next stages
+                    env.DOCKER_IMAGE = fullImageName
+
+                    echo "✅ Docker image: ${fullImageName}:${IMAGE_TAG}"
+                }
+            }
+        }
+
+        // ============================================================
+        // STAGE 6: Push to Docker Hub
+        // ============================================================
+        stage('Push to Docker Hub') {
+            steps {
+                script {
+                    echo "📤 Pushing Docker image to Docker Hub..."
+
+                    sh """
+                        # Login to Docker Hub
+                        echo "${DOCKER_HUB_CREDENTIALS}" | docker login --username-password-stdin
+
+                        # Push both tagged images
+                        echo "Pushing ${DOCKER_IMAGE}:${IMAGE_TAG}..."
+                        docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
+
+                        echo "Pushing ${DOCKER_IMAGE}:latest..."
+                        docker push ${DOCKER_IMAGE}:latest
+
+                        echo ""
+                        echo "✅ Docker image pushed to Docker Hub!"
+                        echo "Image: ${DOCKER_IMAGE}:${IMAGE_TAG}"
+                    """
+                }
+            }
+        }
+
+        // ============================================================
+        // STAGE 7: Deploy to Heroku
         // ============================================================
         stage('Deploy to Heroku') {
             steps {
@@ -288,30 +340,40 @@ pipeline {
                         heroku config:set SPRING_DATASOURCE_USERNAME="${DATABASE_USERNAME}" --app "${DEPLOY_APP_NAME}"
                         heroku config:set SPRING_DATASOURCE_PASSWORD="${DATABASE_PASSWORD}" --app "${DEPLOY_APP_NAME}"
                         heroku config:set SPRING_DATASOURCE_DRIVER_CLASS_NAME="${DATABASE_DRIVER}" --app "${DEPLOY_APP_NAME}"
-
-                        heroku config:set JAVA_VERSION="17" --app "${DEPLOY_APP_NAME}"
-                        heroku config:set MAVEN_VERSION="3.9.9" --app "${DEPLOY_APP_NAME}"
                     """
 
-                    // Deploy JAR directly to Heroku (NO Docker needed!)
+                    // Deploy using Heroku Container Registry
+                    // Pull from Docker Hub, tag for Heroku, push to Heroku, release
                     sh """
-                        echo "📤 Deploying JAR to Heroku..."
-                        echo "JAR: target/Week8_Practice1-0.0.1-SNAPSHOT.jar"
-                        echo "App: ${DEPLOY_APP_NAME}"
+                        echo "📤 Deploying Docker image to Heroku..."
+                        echo "Source: ${DOCKER_IMAGE}:${IMAGE_TAG}"
+                        echo "Target: registry.heroku.com/${DEPLOY_APP_NAME}/web"
+                        echo ""
 
-                        # Deploy using Heroku Git deployment (pushes JAR to Heroku)
-                        # Heroku will detect it's a Spring Boot app and build/run it
-                        heroku deploy:jar target/Week8_Practice1-0.0.1-SNAPSHOT.jar \
-                            --app "${DEPLOY_APP_NAME}"
+                        # Pull image from Docker Hub
+                        docker pull ${DOCKER_IMAGE}:${IMAGE_TAG}
+
+                        # Tag for Heroku Container Registry
+                        docker tag ${DOCKER_IMAGE}:${IMAGE_TAG} registry.heroku.com/${DEPLOY_APP_NAME}/web
+
+                        # Login to Heroku Container Registry
+                        echo "${HEROKU_API_KEY}" | docker login --username=_ --password-stdin registry.heroku.com
+
+                        # Push to Heroku Container Registry
+                        docker push registry.heroku.com/${DEPLOY_APP_NAME}/web
+
+                        # Release the container
+                        heroku container:release web --app "${DEPLOY_APP_NAME}"
+
+                        echo ""
+                        echo "✅ Deployed to Heroku successfully!"
                     """
-
-                    echo "✅ Deployed to Heroku successfully"
                 }
             }
         }
 
         // ============================================================
-        // STAGE 5: Health Check
+        // STAGE 8: Health Check
         // ============================================================
         stage('Health Check') {
             steps {
@@ -373,14 +435,6 @@ pipeline {
                 echo "✅ Pipeline SUCCESS!"
 
                 try {
-                    // Check if tests were skipped
-                    def testReportCount = sh(
-                        script: 'ls target/surefire-reports/*.xml 2>/dev/null | wc -l',
-                        returnStdout: true
-                    ).trim().toInteger()
-
-                    def testStatus = (testReportCount > 0) ? "✅ All tests passed" : "⚠️ Tests skipped (timeout)"
-
                     withCredentials([string(credentialsId: 'discord-notification', variable: 'DISCORD_WEBHOOK')]) {
                         discordSend(
                             webhookURL: DISCORD_WEBHOOK,
@@ -388,9 +442,10 @@ pipeline {
                             description: """**Environment:** `${env.DEPLOY_ENV}` (${env.SPRING_PROFILE})
 **Branch:** `${env.GIT_BRANCH}`
 **Build:** `#${env.BUILD_NUMBER}`
+**Docker Image:** `${DOCKER_IMAGE}:${IMAGE_TAG}`
 **Heroku App:** `${DEPLOY_APP_NAME}`
 
-**${testStatus}**
+**✅ All tests passed**
 
 **🔗 [App](${env.APP_URL}) | [Health](${env.APP_URL}/actuator/health)**""",
                             result: 'SUCCESS'
@@ -415,7 +470,7 @@ pipeline {
 **Branch:** `${env.GIT_BRANCH}`
 **Build:** `#${env.BUILD_NUMBER}`
 
-**❌ Check build logs for details**
+**❌ Check test results or build logs**
 
 **🔗 [Console Output](${env.BUILD_URL}console)**""",
                             result: 'FAILURE'
@@ -428,6 +483,12 @@ pipeline {
         }
 
         always {
+            // Cleanup Docker images
+            sh '''
+                if command -v docker &> /dev/null; then
+                    docker system prune -f || true
+                fi
+            '''
             echo "Pipeline completed"
         }
     }
