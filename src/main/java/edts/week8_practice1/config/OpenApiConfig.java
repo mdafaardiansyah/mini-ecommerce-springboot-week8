@@ -13,6 +13,6 @@ public class OpenApiConfig {
         return new OpenAPI()
                 .info(new Info()
                         .title("Week 8 Practice 1 API - Deployment CI/CD Testing")
-                        .version("1.1"));
+                        .version("1.0"));
     }
 }
