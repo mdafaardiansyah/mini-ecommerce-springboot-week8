@@ -194,18 +194,11 @@ pipeline {
                     echo "🐳 Verifying Docker is available..."
 
                     sh '''
-                        if ! command -v docker &> /dev/null; then
+                        # UBAH BARIS DI BAWAH INI (Ganti &> dengan > /dev/null 2>&1)
+                        if ! command -v docker > /dev/null 2>&1; then
                             echo "❌ Docker is NOT installed on this Jenkins agent"
                             echo ""
                             echo "PREREQUISITE: Docker must be pre-installed on Jenkins agent"
-                            echo ""
-                            echo "To install Docker on Jenkins agent:"
-                            echo "1. SSH to Jenkins agent"
-                            echo "2. Run: curl -fsSL https://get.docker.com | sh"
-                            echo "3. Or: apt-get update && apt-get install -y docker-ce"
-                            echo ""
-                            echo "This pipeline CANNOT auto-install Docker due to"
-                            echo "insufficient permissions on Jenkins agent."
                             exit 1
                         fi
 
