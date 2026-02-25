@@ -1,24 +1,15 @@
 /**
- * Jenkins Pipeline for Order Management API - Docker + Docker Hub + Heroku
+ * Jenkins Pipeline for Order Management API - Simplified
  *
- * Deployment Strategy:
- * - develop branch → dev profile → week8-practice1-dev
- * - main branch → prod profile → week8-practice1-prod
+ * STRATEGY:
+ * 1. Build JAR (with adaptive test strategy)
+ * 2. Push JAR directly to Heroku (NO Docker needed)
+ * 3. Health check
  *
- * Deployment Flow:
- * 1. Checkout code
- * 2. Maven build (NO skip tests)
- * 3. Run unit tests (FAIL BUILD if tests fail)
- * 4. Build Docker image
- * 5. Push to Docker Hub
- * 6. Deploy to Heroku (pull from Docker Hub)
- * 7. Health check
- *
- * Prerequisites:
- * - Docker installed on Jenkins agent
- * - Docker Hub credentials (docker-hub)
- * - Heroku API key
- * - Database credentials
+ * Why NO Docker?
+ * - Jenkins agent doesn't have permission to install Docker
+ * - Heroku can deploy JAR directly without Docker
+ * - Simpler, faster, more reliable
  */
 
 pipeline {
@@ -42,12 +33,6 @@ pipeline {
     }
 
     environment {
-        // Docker Hub Configuration
-        DOCKER_HUB_CREDENTIALS = credentials('docker-hub')
-        DOCKER_REPO = 'ardidafa' // TODO: Change to your Docker Hub username
-        IMAGE_NAME_DEV = 'week8-practice1-dev'
-        IMAGE_NAME_PROD = 'week8-practice1-prod'
-
         // Heroku Configuration
         HEROKU_API_KEY = credentials('HEROKU_API_KEY')
         HEROKU_APP_NAME_DEV = 'week8-practice1-dev'
@@ -69,109 +54,14 @@ pipeline {
 
     stages {
         // ============================================================
-        // STAGE 0: Check System Resources
-        // ============================================================
-        stage('System Check') {
-            steps {
-                script {
-                    echo "🔍 Checking Jenkins Agent System Resources..."
-
-                    sh '''
-                        echo "=========================================="
-                        echo "SYSTEM RESOURCES DIAGNOSTIC"
-                        echo "=========================================="
-
-                        echo ""
-                        echo "📊 CPU Info:"
-                        echo "----------------------------------------"
-                        nproc || echo "CPU cores: Unknown"
-                        grep -c ^processor /proc/cpuinfo 2>/dev/null || echo "CPU count: Unknown"
-
-                        echo ""
-                        echo "💾 Memory Info:"
-                        echo "----------------------------------------"
-                        free -h || echo "Memory info unavailable"
-
-                        echo ""
-                        echo "💽 Disk Info:"
-                        echo "----------------------------------------"
-                        df -h / || echo "Disk info unavailable"
-
-                        echo ""
-                        echo "🐳 Docker Status:"
-                        echo "----------------------------------------"
-                        docker --version 2>/dev/null || echo "Docker: NOT INSTALLED"
-
-                        echo ""
-                        echo "☕ Java Info:"
-                        echo "----------------------------------------"
-                        java -version 2>&1 | head -3
-
-                        echo ""
-                        echo "🔧 Maven Info:"
-                        echo "----------------------------------------"
-                        mvn -version | head -3
-
-                        echo ""
-                        echo "📦 Current Java Processes:"
-                        echo "----------------------------------------"
-                        ps aux | grep -i java | grep -v grep || echo "No Java processes running"
-
-                        echo ""
-                        echo "⏱️  System Load:"
-                        echo "----------------------------------------"
-                        uptime || echo "Uptime unavailable"
-
-                        echo ""
-                        echo "🚨 Current Memory Usage (Top 5):"
-                        echo "----------------------------------------"
-                        ps aux --sort=-%mem | head -6 || echo "Process info unavailable"
-
-                        echo ""
-                        echo "=========================================="
-                        echo "END OF DIAGNOSTIC"
-                        echo "=========================================="
-                    '''
-                }
-            }
-        }
-
-        // ============================================================
         // STAGE 1: Checkout
         // ============================================================
         stage('Checkout') {
             steps {
-                // Clean workspace before checkout to ensure fresh code
                 cleanWs()
-
-                // Checkout with options to ensure fresh code
-                checkout([
-                    $class: 'GitSCM',
-                    branches: [[name: '*/master']],
-                    userRemoteConfigs: [[url: 'https://github.com/mdafaardiansyah/mini-ecommerce-springboot-week8.git']],
-                    extensions: [
-                        [$class: 'CleanBeforeCheckout'],
-                        [$class: 'CloneOption', depth: 0, noTags: false, reference: '', shallow: false]
-                    ]
-                ])
+                checkout scm
 
                 script {
-                    // Verify we got the latest code
-                    sh '''
-                        echo "=========================================="
-                        echo "GIT INFORMATION"
-                        echo "=========================================="
-                        echo "Current commit:"
-                        git log -1 --oneline
-                        echo ""
-                        echo "Remote status:"
-                        git status
-                        echo ""
-                        echo "Latest commit on remote:"
-                        git ls-remote origin HEAD | head -1
-                        echo "=========================================="
-                    '''
-
                     // Extract Git info
                     env.GIT_BRANCH = sh(
                         script: 'git rev-parse --abbrev-ref HEAD',
@@ -184,59 +74,49 @@ pipeline {
                     ).trim()
 
                     // Auto-detect environment from branch
-                    // Remove 'origin/' prefix if present
                     def cleanBranch = env.GIT_BRANCH.replace('origin/', '')
 
                     if (cleanBranch == 'main' || cleanBranch == 'master') {
                         env.SPRING_PROFILE = 'prod'
                         env.DEPLOY_ENV = 'production'
                         env.DEPLOY_APP_NAME = HEROKU_APP_NAME_PROD
-                        env.IMAGE_NAME = IMAGE_NAME_PROD
                         echo "🚀 Branch: ${cleanBranch} → PRODUCTION"
                     } else if (cleanBranch == 'develop') {
                         env.SPRING_PROFILE = 'dev'
                         env.DEPLOY_ENV = 'development'
                         env.DEPLOY_APP_NAME = HEROKU_APP_NAME_DEV
-                        env.IMAGE_NAME = IMAGE_NAME_DEV
                         echo "🔧 Branch: ${cleanBranch} → DEVELOPMENT"
                     } else {
-                        // Use parameter for other branches
                         if (params.DEPLOY_ENV == 'production') {
                             env.DEPLOY_APP_NAME = HEROKU_APP_NAME_PROD
-                            env.IMAGE_NAME = IMAGE_NAME_PROD
                         } else {
                             env.DEPLOY_APP_NAME = HEROKU_APP_NAME_DEV
-                            env.IMAGE_NAME = IMAGE_NAME_DEV
                         }
                         echo "ℹ️ Branch: ${cleanBranch} → ${env.DEPLOY_ENV}"
                     }
 
                     echo "Spring Profile: ${env.SPRING_PROFILE}"
-                    echo "Heroku App: ${env.DEPLOY_APP_NAME}"
-                    echo "Docker Image: ${DOCKER_REPO}/${IMAGE_NAME}"
+                    echo "Heroku App: ${DEPLOY_APP_NAME}"
                 }
             }
         }
 
         // ============================================================
-        // STAGE 2: Build with Maven (Unit Tests Only)
+        // STAGE 2: Build with Maven (Adaptive Test Strategy)
         // ============================================================
         stage('Build') {
             steps {
                 script {
                     echo "🔨 Building Spring Boot Application..."
                     echo "⚠️ Unit tests will run. Build will FAIL if tests fail."
-                    echo "ℹ️ Integration tests skipped for faster CI/CD"
-                    echo "ℹ️ Unit tests use Mockito (NO database)"
                     echo ""
                     echo "📌 Build strategy: Adaptive for low-memory Jenkins agents"
                     echo "   - Tests with 10min timeout (optimized surefire config)"
                     echo "   - If tests timeout, retry without tests (for deployment only)"
-                    echo ""
 
                     withEnv([
                         "SPRING_PROFILES_ACTIVE=unit-test",
-                        "MAVEN_OPTS=-Xmx256m -XX:MaxMetaspaceSize=128m" // Reduced for low-memory agents
+                        "MAVEN_OPTS=-Xmx256m -XX:MaxMetaspaceSize=128m"
                     ]) {
                         // Try with tests first, but with aggressive timeout
                         def buildSuccess = false
@@ -355,142 +235,7 @@ pipeline {
         }
 
         // ============================================================
-        // STAGE 3.5: Install Docker
-        // ============================================================
-        stage('Install Docker') {
-            steps {
-                script {
-                    echo "🐳 Checking if Docker is installed..."
-
-                    // Check if docker exists, install if not
-                    sh '''
-                        if ! command -v docker &> /dev/null; then
-                            echo "⚠️ Docker not found. Installing Docker..."
-
-                            # Detect OS
-                            if [ -f /etc/os-release ]; then
-                                . /etc/os-release
-                                OS=$ID
-                            else
-                                echo "Cannot detect OS"
-                                exit 1
-                            fi
-
-                            echo "Installing Docker on $OS..."
-
-                            # Install Docker based on OS (NO sudo - Jenkins runs as root)
-                            if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-                                # Ubuntu/Debian
-                                apt-get update
-                                apt-get install -y ca-certificates curl gnupg
-                                install -m 0755 -d /etc/apt/keyrings
-                                curl -fsSL https://download.docker.com/linux/$OS/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-                                chmod a+r /etc/apt/keyrings/docker.gpg
-                                echo \
-                                  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/$OS \
-                                  \$(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-                                  tee /etc/apt/sources.list.d/docker.list > /dev/null
-                                apt-get update
-                                apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-
-                            elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
-                                # CentOS/RHEL
-                                yum install -y yum-utils
-                                yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-                                yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-
-                            elif [ "$OS" = "amzn" ]; then
-                                # Amazon Linux
-                                yum install -y docker
-                            else
-                                echo "⚠️ Unsupported OS: $OS"
-                                echo "Trying universal install script..."
-                                curl -fsSL https://get.docker.com -o get-docker.sh
-                                sh get-docker.sh
-                            fi
-
-                            # Start Docker service
-                            service docker start || systemctl start docker
-
-                            echo "✅ Docker installed successfully"
-                        else
-                            echo "✅ Docker already installed"
-                        fi
-
-                        # Test docker
-                        docker --version
-                        echo "✅ Docker is ready!"
-                    '''
-                }
-            }
-        }
-
-        // ============================================================
-        // STAGE 4: Build Docker Image
-        // ============================================================
-        stage('Build Docker Image') {
-            steps {
-                script {
-                    echo "🐳 Building Docker image..."
-
-                    // Get Docker Hub username from credentials
-                    def dockerHubUsername = DOCKER_HUB_CREDENTIALS.split(':')[0]
-
-                    // Full image name
-                    def fullImageName = "${dockerHubUsername}/${IMAGE_NAME}"
-
-                    // Build with metadata (Jenkins runs as root, no sudo needed)
-                    sh """
-                        echo "Building Docker image: ${fullImageName}:${IMAGE_TAG}"
-
-                        # Build image
-                        docker build \
-                            -t ${fullImageName}:${IMAGE_TAG} \
-                            -t ${fullImageName}:latest \
-                            --build-arg SPRING_PROFILES_ACTIVE=${env.SPRING_PROFILE} \
-                            --build-arg BUILD_DATE=\$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
-                            --build-arg VCS_REF=${env.GIT_COMMIT_SHORT} \
-                            --build-arg VERSION=${IMAGE_TAG} \
-                            .
-                    """
-
-                    // Store for next stages
-                    env.DOCKER_IMAGE = fullImageName
-
-                    echo "✅ Docker image built: ${fullImageName}:${IMAGE_TAG}"
-                    sh """
-                        docker images ${fullImageName} --format 'table {{.Repository}}\\t{{.Tag}}\\t{{.Size}}'
-                    """
-                }
-            }
-        }
-
-        // ============================================================
-        // STAGE 5: Push to Docker Hub
-        // ============================================================
-        stage('Push to Docker Hub') {
-            steps {
-                script {
-                    echo "📤 Pushing Docker image to Docker Hub..."
-
-                    // Login to Docker Hub and push (Jenkins runs as root)
-                    sh """
-                        # Login to Docker Hub
-                        echo "${DOCKER_HUB_CREDENTIALS}" | docker login --username-password-stdin
-
-                        # Push both tagged images
-                        docker push ${DOCKER_IMAGE}:${IMAGE_TAG}
-                        docker push ${DOCKER_IMAGE}:latest
-                    """
-
-                    echo "✅ Docker image pushed to Docker Hub"
-                    echo "Image: ${DOCKER_IMAGE}:${IMAGE_TAG}"
-                }
-            }
-        }
-
-        // ============================================================
-        // STAGE 6: Deploy to Heroku
+        // STAGE 4: Deploy to Heroku (Direct JAR Deployment)
         // ============================================================
         stage('Deploy to Heroku') {
             steps {
@@ -543,23 +288,21 @@ pipeline {
                         heroku config:set SPRING_DATASOURCE_USERNAME="${DATABASE_USERNAME}" --app "${DEPLOY_APP_NAME}"
                         heroku config:set SPRING_DATASOURCE_PASSWORD="${DATABASE_PASSWORD}" --app "${DEPLOY_APP_NAME}"
                         heroku config:set SPRING_DATASOURCE_DRIVER_CLASS_NAME="${DATABASE_DRIVER}" --app "${DEPLOY_APP_NAME}"
+
+                        heroku config:set JAVA_VERSION="17" --app "${DEPLOY_APP_NAME}"
+                        heroku config:set MAVEN_VERSION="3.9.9" --app "${DEPLOY_APP_NAME}"
                     """
 
-                    // Deploy by creating Heroku.yml that pulls from Docker Hub
-                    // Or we can use Heroku Container Registry with image from Docker Hub
+                    // Deploy JAR directly to Heroku (NO Docker needed!)
                     sh """
-                        echo "Setting Heroku to use Docker image from Docker Hub..."
+                        echo "📤 Deploying JAR to Heroku..."
+                        echo "JAR: target/Week8_Practice1-0.0.1-SNAPSHOT.jar"
+                        echo "App: ${DEPLOY_APP_NAME}"
 
-                        # Set Docker image location for Heroku
-                        heroku config:set DOCKER_IMAGE="${DOCKER_IMAGE}:${IMAGE_TAG}" --app "${DEPLOY_APP_NAME}"
-
-                        # Use Heroku Container Registry to deploy
-                        # Pull image from Docker Hub, tag it for Heroku, push to Heroku Registry, release
-                        docker pull ${DOCKER_IMAGE}:${IMAGE_TAG}
-                        docker tag ${DOCKER_IMAGE}:${IMAGE_TAG} registry.heroku.com/${DEPLOY_APP_NAME}/web
-                        echo "${HEROKU_API_KEY}" | docker login --username=_ --password-stdin registry.heroku.com
-                        docker push registry.heroku.com/${DEPLOY_APP_NAME}/web
-                        heroku container:release web --app "${DEPLOY_APP_NAME}"
+                        # Deploy using Heroku Git deployment (pushes JAR to Heroku)
+                        # Heroku will detect it's a Spring Boot app and build/run it
+                        heroku deploy:jar target/Week8_Practice1-0.0.1-SNAPSHOT.jar \
+                            --app "${DEPLOY_APP_NAME}"
                     """
 
                     echo "✅ Deployed to Heroku successfully"
@@ -568,7 +311,7 @@ pipeline {
         }
 
         // ============================================================
-        // STAGE 7: Health Check
+        // STAGE 5: Health Check
         // ============================================================
         stage('Health Check') {
             steps {
@@ -645,7 +388,6 @@ pipeline {
                             description: """**Environment:** `${env.DEPLOY_ENV}` (${env.SPRING_PROFILE})
 **Branch:** `${env.GIT_BRANCH}`
 **Build:** `#${env.BUILD_NUMBER}`
-**Docker Image:** `${DOCKER_IMAGE}:${IMAGE_TAG}`
 **Heroku App:** `${DEPLOY_APP_NAME}`
 
 **${testStatus}**
@@ -686,12 +428,6 @@ pipeline {
         }
 
         always {
-            // Cleanup Docker images
-            sh '''
-                if command -v docker &> /dev/null; then
-                    docker system prune -f || true
-                fi
-            '''
             echo "Pipeline completed"
         }
     }
