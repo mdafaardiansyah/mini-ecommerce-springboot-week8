@@ -3,42 +3,27 @@ package edts.week8_practice1;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
-import org.springframework.web.servlet.ViewController;
-import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 
 @SpringBootApplication
-public class Week8Practice1Application implements WebMvcConfigurer {
+public class Week8Practice1Application {
 
     public static void main(String[] args) {
         SpringApplication.run(Week8Practice1Application.class, args);
     }
 
     /**
-     * Redirect root path (/) to Swagger UI
+     * Redirect controller for root path to Swagger UI
      * When users open the domain, they'll be automatically redirected to API documentation
      */
-    @Override
-    public void addViewControllers(ViewControllerRegistry registry) {
-        // Redirect root "/" to Swagger UI
-        registry.addRedirectViewController("/", "/swagger-ui.html");
+    @Controller
+    public static class RedirectController {
 
-        // Also redirect common paths
-        registry.addRedirectViewController("/index.html", "/swagger-ui.html");
-        registry.addRedirectViewController("/api", "/swagger-ui.html");
-    }
-
-    /**
-     * Fallback controller for any unmapped paths
-     * Redirects to Swagger UI for better UX
-     */
-    @Bean
-    public ViewController viewController() {
-        return new ViewController() {
-            @Override
-            public String getViewName() {
-                return "forward:/swagger-ui.html";
-            }
-        };
+        @GetMapping({"/", "/index.html", "/api"})
+        public String redirectToSwagger() {
+            return "redirect:/swagger-ui.html";
+        }
     }
 }
