@@ -263,14 +263,18 @@ pipeline {
         // ============================================================
         // STAGE 6: Push to Docker Hub
         // ============================================================
+        // ============================================================
+        // STAGE 6: Push to Docker Hub
+        // ============================================================
         stage('Push to Docker Hub') {
             steps {
                 script {
                     echo "📤 Pushing Docker image to Docker Hub..."
 
-                    sh """
-                        # Login to Docker Hub
-                        echo "${DOCKER_HUB_CREDENTIALS}" | docker login --username-password-stdin
+                    // Gunakan kutip tunggal (''') agar aman dari bocornya password di log Jenkins
+                    sh '''
+                        # Login to Docker Hub dengan syntax yang benar
+                        echo "$DOCKER_HUB_CREDENTIALS_PSW" | docker login -u "$DOCKER_HUB_CREDENTIALS_USR" --password-stdin
 
                         # Push both tagged images
                         echo "Pushing ${DOCKER_IMAGE}:${IMAGE_TAG}..."
@@ -282,7 +286,7 @@ pipeline {
                         echo ""
                         echo "✅ Docker image pushed to Docker Hub!"
                         echo "Image: ${DOCKER_IMAGE}:${IMAGE_TAG}"
-                    """
+                    '''
                 }
             }
         }
