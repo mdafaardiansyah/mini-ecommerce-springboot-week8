@@ -12,7 +12,7 @@ public class OpenApiConfig {
     public OpenAPI customOpenAPI() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("Week 8 Practice 1 API")
+                        .title("Week 8 Practice 1 API - Deployment CI/CD Testing")
                         .version("1.0"));
     }
 }
