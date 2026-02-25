@@ -271,7 +271,7 @@ pipeline {
 
                     // Gunakan kutip tunggal (''') agar aman dari bocornya password di log Jenkins
                     sh '''
-                        # Login to Docker Hub dengan syntax yang benar
+                        # Login to Docker Hub dengxxan syntax yang benar
                         echo "$DOCKER_HUB_CREDENTIALS_PSW" | docker login -u "$DOCKER_HUB_CREDENTIALS_USR" --password-stdin
 
                         # Push both tagged images
