@@ -27,6 +27,15 @@ spring:
 server:
   port: ${SERVER_PORT:8080}
 
+# CORS Configuration
+web:
+  cors:
+    allowed-origins: https://idp-week8.glanze.space,https://www.idp-week8.glanze.space
+    allowed-methods: GET,POST,PUT,DELETE,PATCH,OPTIONS
+    allowed-headers: "*"
+    allow-credentials: true
+    max-age: 3600
+
 springdoc:
   api-docs:
     path: /api-docs

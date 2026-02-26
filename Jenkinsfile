@@ -6,11 +6,11 @@
  * - main/master branch → prod profile → week8-practice1-prod
  *
  * Requirements:
- * ✅ Use Docker for deployment
- * ✅ Auto-restart containers (Heroku handles this)
- * ✅ Reflect latest code (always build fresh image)
- * ✅ Use correct Spring profile
- * ✅ If unit tests failed, build failed
+ * Use Docker for deployment
+ * Auto-restart containers (Heroku handles this)
+ * Reflect latest code (always build fresh image)
+ * Use correct Spring profile
+ * If unit tests failed, build failed
  *
  * Prerequisites:
  * - Docker MUST be pre-installed on Jenkins agent
@@ -54,7 +54,7 @@ pipeline {
 
         // Docker Hub Configuration
         DOCKER_HUB_CREDENTIALS = credentials('docker-hub')
-        DOCKER_REPO = 'ardidafa' // TODO: Change to your Docker Hub username
+        DOCKER_REPO = 'ardidafa'
         IMAGE_NAME_DEV = 'week8-practice1-dev'
         IMAGE_NAME_PROD = 'week8-practice1-prod'
 
@@ -107,13 +107,13 @@ pipeline {
                         env.DEPLOY_ENV = 'production'
                         env.DEPLOY_APP_NAME = HEROKU_APP_NAME_PROD
                         env.IMAGE_NAME = IMAGE_NAME_PROD
-                        echo "🚀 Branch: ${cleanBranch} → PRODUCTION"
+                        echo "Branch: ${cleanBranch} → PRODUCTION"
                     } else if (cleanBranch == 'develop') {
                         env.SPRING_PROFILE = 'dev'
                         env.DEPLOY_ENV = 'development'
                         env.DEPLOY_APP_NAME = HEROKU_APP_NAME_DEV
                         env.IMAGE_NAME = IMAGE_NAME_DEV
-                        echo "🔧 Branch: ${cleanBranch} → DEVELOPMENT"
+                        echo "Branch: ${cleanBranch} → DEVELOPMENT"
                     } else {
                         // Use parameter for other branches
                         if (params.DEPLOY_ENV == 'production') {
@@ -123,7 +123,7 @@ pipeline {
                             env.DEPLOY_APP_NAME = HEROKU_APP_NAME_DEV
                             env.IMAGE_NAME = IMAGE_NAME_DEV
                         }
-                        echo "ℹ️ Branch: ${cleanBranch} → ${env.DEPLOY_ENV}"
+                        echo "Branch: ${cleanBranch} → ${env.DEPLOY_ENV}"
                     }
 
                     echo "Spring Profile: ${env.SPRING_PROFILE}"
@@ -139,10 +139,10 @@ pipeline {
         stage('Build') {
             steps {
                 script {
-                    echo "🔨 Building Spring Boot Application..."
-                    echo "⚠️ Unit tests are MANDATORY. Build will FAIL if tests fail."
-                    echo "ℹ️ Integration tests skipped for faster CI/CD"
-                    echo "ℹ️ Unit tests use Mockito (NO database)"
+                    echo "Building Spring Boot Application..."
+                    echo "Unit tests are MANDATORY. Build will FAIL if tests fail."
+                    echo "Integration tests skipped for faster CI/CD"
+                    echo "Unit tests use Mockito (NO database)"
 
                     withEnv([
                         "SPRING_PROFILES_ACTIVE=unit-test",
@@ -152,7 +152,7 @@ pipeline {
                         // Tests MUST pass for build to succeed
                         timeout(time: 30, unit: 'MINUTES') {
                             sh '''
-                                echo "🔍 Building with UNIT TESTS (mandatory)..."
+                                echo "Building with UNIT TESTS (mandatory)..."
                                 echo ""
 
                                 # Build with tests running
@@ -170,10 +170,10 @@ pipeline {
                     // Verify JAR was created
                     sh '''
                         if [ -f target/Week8_Practice1-0.0.1-SNAPSHOT.jar ]; then
-                            echo "✅ Build successful - JAR file created"
+                            echo "Build successful - JAR file created"
                             ls -lh target/Week8_Practice1-0.0.1-SNAPSHOT.jar
                         else
-                            echo "❌ Build failed - JAR file not found"
+                            echo "Build failed - JAR file not found"
                             exit 1
                         fi
                     '''
@@ -192,7 +192,7 @@ pipeline {
                     // Publish test results - FAIL BUILD if tests failed
                     junit testResults: 'target/surefire-reports/*.xml', allowEmptyResults: false
 
-                    echo "✅ All unit tests passed! Build can proceed."
+                    echo "All unit tests passed! Build can proceed."
                 }
             }
         }
@@ -203,19 +203,19 @@ pipeline {
         stage('Verify Docker') {
             steps {
                 script {
-                    echo "🐳 Verifying Docker is available..."
+                    echo "Verifying Docker is available..."
 
                     sh '''
                         # Pengecekan posix standard yang sudah kamu perbaiki
                         if ! command -v docker > /dev/null 2>&1; then
-                            echo "❌ Docker is NOT installed on this Jenkins agent"
+                            echo "Docker is NOT installed on this Jenkins agent"
                             echo ""
                             echo "PREREQUISITE: Docker must be pre-installed on Jenkins agent"
                             exit 1
                         fi
 
                         docker --version
-                        echo "✅ Docker is available!"
+                        echo "Docker is available!"
                     '''
                 }
             }
@@ -227,7 +227,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    echo "🐳 Building Docker image..."
+                    echo "Building Docker image..."
 
                     // Use global DOCKER_REPO instead of extracting from credential
                     // This ensures image always goes to the correct Docker Hub namespace
@@ -250,14 +250,14 @@ pipeline {
                             .
 
                         echo ""
-                        echo "✅ Docker image built successfully!"
+                        echo "[Success] Docker image built successfully!"
                         docker images ${fullImageName} --format 'table {{.Repository}}\t{{.Tag}}\t{{.Size}}'
                     """
 
                     // Store for next stages
                     env.DOCKER_IMAGE = fullImageName
 
-                    echo "✅ Docker image: ${fullImageName}:${IMAGE_TAG}"
+                    echo "Docker image: ${fullImageName}:${IMAGE_TAG}"
                 }
             }
         }
@@ -271,7 +271,7 @@ pipeline {
         stage('Push to Docker Hub') {
             steps {
                 script {
-                    echo "📤 Pushing Docker image to Docker Hub..."
+                    echo "Pushing Docker image to Docker Hub..."
 
                     // Gunakan kutip tunggal (''') agar aman dari bocornya password di log Jenkins
                     sh '''
@@ -286,7 +286,7 @@ pipeline {
                         docker push ${DOCKER_IMAGE}:latest
 
                         echo ""
-                        echo "✅ Docker image pushed to Docker Hub!"
+                        echo "Docker image pushed to Docker Hub!"
                         echo "Image: ${DOCKER_IMAGE}:${IMAGE_TAG}"
                     '''
                 }
@@ -299,7 +299,7 @@ pipeline {
         stage('Deploy to Heroku') {
             steps {
                 script {
-                    echo "🚀 Deploying to Heroku: ${DEPLOY_APP_NAME}"
+                    echo "Deploying to Heroku: ${DEPLOY_APP_NAME}"
 
                     // Install Heroku CLI
                     sh '''
@@ -312,7 +312,7 @@ pipeline {
                         elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
                             DOWNLOAD_URL="https://cli-assets.heroku.com/heroku-linux-arm64.tar.gz"
                         else
-                            echo "❌ Unsupported architecture: $ARCH"
+                            echo " Unsupported architecture: $ARCH"
                             exit 1
                         fi
 
@@ -352,7 +352,7 @@ pipeline {
                     // Deploy using Heroku Container Registry
                     // Pull from Docker Hub, tag for Heroku, push to Heroku, release
                     sh """
-                        echo "📤 Deploying Docker image to Heroku..."
+                        echo "Deploying Docker image to Heroku..."
                         echo "Source: ${DOCKER_IMAGE}:${IMAGE_TAG}"
                         echo "Target: registry.heroku.com/${DEPLOY_APP_NAME}/web"
                         echo ""
@@ -373,7 +373,7 @@ pipeline {
                         heroku container:release web --app "${DEPLOY_APP_NAME}"
 
                         echo ""
-                        echo "✅ Deployed to Heroku successfully!"
+                        echo "Deployed to Heroku successfully!"
                     """
                 }
             }
@@ -385,7 +385,7 @@ pipeline {
         stage('Health Check') {
             steps {
                 script {
-                    echo "🏥 Checking application health..."
+                    echo "Checking application health..."
 
                     // Get app URL with more robust parsing
                     def appUrl = sh(
@@ -403,15 +403,15 @@ pipeline {
                     // Fallback URL if parsing fails
                     if (!appUrl || appUrl == "") {
                         appUrl = "https://${DEPLOY_APP_NAME}.herokuapp.com"
-                        echo "⚠️ Auto-detect URL failed. Using fallback: ${appUrl}"
+                        echo "Auto-detect URL failed. Using fallback: ${appUrl}"
                     } else {
-                        echo "✅ Detected App URL: ${appUrl}"
+                        echo "Detected App URL: ${appUrl}"
                     }
 
                     env.APP_URL = appUrl
 
                     // Wait for startup
-                    echo "⏳ Waiting for application to start..."
+                    echo "Waiting for application to start..."
                     sleep time: 60, unit: 'SECONDS'
 
                     // Health check with proper quoting
@@ -429,17 +429,17 @@ pipeline {
                                 HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${APP_URL}/actuator/health" || echo "000")
 
                                 if [ "${HTTP_CODE}" = "200" ]; then
-                                    echo "✅ Health check passed!"
+                                    echo "Health check passed!"
                                     curl -s "${APP_URL}/actuator/health" | jq . || true
                                     exit 0
                                 fi
 
-                                echo "⏳ Waiting... (HTTP: ${HTTP_CODE})"
+                                echo "Waiting... (HTTP: ${HTTP_CODE})"
                                 sleep 10
                                 RETRY_COUNT=$((RETRY_COUNT + 1))
                             done
 
-                            echo "❌ Health check failed after ${MAX_RETRIES} attempts"
+                            echo "Health check failed after ${MAX_RETRIES} attempts"
                             echo "App URL: ${APP_URL}"
                             exit 1
                         '''
@@ -455,20 +455,20 @@ pipeline {
     post {
         success {
             script {
-                echo "✅ Pipeline SUCCESS!"
+                echo "Pipeline SUCCESS!"
 
                 try {
                     withCredentials([string(credentialsId: 'discord-notification', variable: 'DISCORD_WEBHOOK')]) {
                         discordSend(
                             webhookURL: DISCORD_WEBHOOK,
-                            title: "✅ Deployment Success",
+                            title: "Deployment Success",
                             description: """**Environment:** `${env.DEPLOY_ENV}` (${env.SPRING_PROFILE})
 **Branch:** `${env.GIT_BRANCH}`
 **Build:** `#${env.BUILD_NUMBER}`
 **Docker Image:** `${DOCKER_IMAGE}:${IMAGE_TAG}`
 **Heroku App:** `${DEPLOY_APP_NAME}`
 
-**✅ All tests passed**
+**All tests passed**
 
 **🔗 [App](${env.APP_URL}) | [Health](${env.APP_URL}/actuator/health)**""",
                             result: 'SUCCESS'
@@ -482,20 +482,20 @@ pipeline {
 
         failure {
             script {
-                echo "❌ Pipeline FAILED!"
+                echo "Pipeline FAILED!"
 
                 try {
                     withCredentials([string(credentialsId: 'discord-notification', variable: 'DISCORD_WEBHOOK')]) {
                         discordSend(
                             webhookURL: DISCORD_WEBHOOK,
-                            title: "❌ Deployment Failed",
+                            title: "Deployment Failed",
                             description: """**Environment:** `${env.DEPLOY_ENV}`
 **Branch:** `${env.GIT_BRANCH}`
 **Build:** `#${env.BUILD_NUMBER}`
 
-**❌ Check test results or build logs**
+**Check test results or build logs**
 
-**🔗 [Console Output](${env.BUILD_URL}console)**""",
+**[Console Output](${env.BUILD_URL}console)**""",
                             result: 'FAILURE'
                         )
                     }
