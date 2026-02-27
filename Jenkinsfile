@@ -7,7 +7,7 @@
  *
  * Requirements:
  * Use Docker for deployment
- * Auto-restart containers (Heroku handles this)
+ * Auto-restart containers (Heroku handles this) -/- If use Existing Docker : docker update --restart unless-stopped web
  * Reflect latest code (always build fresh image)
  * Use correct Spring profile
  * If unit tests failed, build failed
@@ -262,9 +262,6 @@ pipeline {
             }
         }
 
-        // ============================================================
-        // STAGE 6: Push to Docker Hub
-        // ============================================================
         // ============================================================
         // STAGE 6: Push to Docker Hub
         // ============================================================
